@@ -17,6 +17,9 @@ services:
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: redesigned-disco-jjp57r6549gpfjqqg-8080.app.github.dev
+      KC_HOSTNAME_PORT: 443
+      KC_HOSTNAME_STRICT: "false"
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://keycloak_db:5432/keycloak_db
       KC_DB_USERNAME: keycloak_user
