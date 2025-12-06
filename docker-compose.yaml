@@ -1,0 +1,146 @@
+version: '3.8'
+
+services:
+  keycloak_db:
+    image: postgres:14
+    environment:
+      POSTGRES_DB: keycloak_db
+      POSTGRES_USER: keycloak_user
+      POSTGRES_PASSWORD: keycloak_password
+    volumes:
+      - ./postgres-keycloak-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:21.1
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak_db:5432/keycloak_db
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: keycloak_password
+    command:
+      - start-dev
+      - --import-realm
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    ports:
+      - "8080:8080"
+    depends_on:
+      - keycloak_db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+      REACT_APP_KEYCLOAK_URL: http://localhost:8080
+      REACT_APP_KEYCLOAK_REALM: reports-realm
+      REACT_APP_KEYCLOAK_CLIENT_ID: reports-frontend
+
+  # Postgres для Airflow (metadata DB)
+  postgres-airflow:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-airflow-data:/var/lib/postgresql/data
+
+  # Airflow webserver
+  airflow-webserver:
+    image: apache/airflow:2.9.0
+    environment:
+      AIRFLOWCOREEXECUTOR: LocalExecutor
+      AIRFLOWCOREFERNET_KEY: "something_fernet_key_base64"
+      AIRFLOWCOREDAGS_ARE_PAUSED_AT_CREATION: "false"
+      AIRFLOWCORELOAD_EXAMPLES: "false"
+      AIRFLOWDATABASESQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow:5432/airflow
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    command: >
+      bash -c "
+      airflow db upgrade &&
+      airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true &&
+      exec airflow webserver
+      "
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres-airflow
+
+  # Airflow scheduler
+  airflow-scheduler:
+    image: apache/airflow:2.9.0
+    environment:
+      AIRFLOWCOREEXECUTOR: LocalExecutor
+      AIRFLOWCOREFERNET_KEY: "something_fernet_key_base64"
+      AIRFLOWCOREDAGS_ARE_PAUSED_AT_CREATION: "false"
+      AIRFLOWCORELOAD_EXAMPLES: "false"
+      AIRFLOWDATABASESQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow:5432/airflow
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    command: >
+      bash -c "
+      airflow db upgrade &&
+      exec airflow scheduler
+      "
+    depends_on:
+      - postgres-airflow
+      - airflow-webserver
+
+  # ClickHouse для OLAP-витрины отчётов
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: clickhouse
+    ports:
+      - "8123:8123"   # HTTP
+      - "9000:9000"   # Native
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  # Postgres для CRM (источник данных для ETL)
+  crm-postgres:
+    image: postgres:15
+    container_name: crm-postgres
+    environment:
+      POSTGRES_USER: crm_user
+      POSTGRES_PASSWORD: crm_password
+      POSTGRES_DB: crm
+    ports:
+      - "5434:5432"
+    volumes:
+      - crm-postgres-data:/var/lib/postgresql/data
+
+  # НОВЫЙ сервис: Java backend для /reports
+  reports-api:
+    build:
+      context: ./reports-api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      SPRING_PROFILES_ACTIVE: default
+    depends_on:
+      - clickhouse
+      - crm-postgres
+      - keycloak
+
+volumes:
+  postgres-airflow-data:
+  clickhouse-data:
+  crm-postgres-data:

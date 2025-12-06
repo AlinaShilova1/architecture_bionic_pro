@@ -1,0 +1,18 @@
+server:
+  port: 8000
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://keycloak:8080/realms/reports-realm
+
+  datasource:
+    clickhouse:
+      url: jdbc:clickhouse://clickhouse:9000/bionicpro_reports
+      username: default
+      password:
+
+reports:
+  allowed-origin: http://localhost:3000   # фронт
