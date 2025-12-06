@@ -7,13 +7,8 @@ const ReportPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const downloadReport = async () => {
-    if (!keycloak) {
-      setError('Auth client is not initialized');
-      return;
-    }
-
-    if (!keycloak.authenticated) {
-      keycloak.login();
+    if (!keycloak?.token) {
+      setError('Not authenticated');
       return;
     }
 
@@ -21,39 +16,13 @@ const ReportPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      await keycloak.updateToken(30).catch(() => {
-        keycloak.login();
-        throw new Error('Session expired, redirecting to login');
-      });
-
-      const token = keycloak.token;
-      if (!token) {
-        throw new Error('No access token available');
-      }
-
-      const apiUrl = process.env.REACT_APP_API_URL || '';
-      const response = await fetch(apiUrl + '/reports', {
-        method: 'GET',
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/reports`, {
         headers: {
-          Authorization: 'Bearer ' + token,
-          Accept: 'text/csv,application/octet-stream',
-        },
+          'Authorization': `Bearer ${keycloak.token}`
+        }
       });
 
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        throw new Error(text || 'Request failed with status ' + response.status);
-      }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'report.csv';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -65,11 +34,11 @@ const ReportPage: React.FC = () => {
     return <div>Loading...</div>;
   }
 
-  if (!keycloak || !keycloak.authenticated) {
+  if (!keycloak.authenticated) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
         <button
-          onClick={() => keycloak && keycloak.login()}
+          onClick={() => keycloak.login()}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
           Login
@@ -86,10 +55,9 @@ const ReportPage: React.FC = () => {
         <button
           onClick={downloadReport}
           disabled={loading}
-          className={
-            'px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ' +
-            (loading ? 'opacity-50 cursor-not-allowed' : '')
-          }
+          className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${
+            loading ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
           {loading ? 'Generating Report...' : 'Download Report'}
         </button>
