@@ -17,9 +17,6 @@ services:
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_HOSTNAME: redesigned-disco-jjp57r6549gpfjqqg-8080.app.github.dev
-      KC_HOSTNAME_PORT: 443
-      KC_HOSTNAME_STRICT: "false"
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://keycloak_db:5432/keycloak_db
       KC_DB_USERNAME: keycloak_user
@@ -45,9 +42,6 @@ services:
       REACT_APP_KEYCLOAK_URL: http://localhost:8080
       REACT_APP_KEYCLOAK_REALM: reports-realm
       REACT_APP_KEYCLOAK_CLIENT_ID: reports-frontend
-    depends_on:
-      - reports-api
-      - keycloak
 
   # Postgres для Airflow (metadata DB)
   postgres-airflow:
